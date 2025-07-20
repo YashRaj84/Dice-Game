@@ -1,11 +1,6 @@
-// DiceGame_Compatible.cpp
-
-// Includes all standard C++ libraries.
 #include <bits/stdc++.h>
-// This header is needed for the Sleep() function on Windows.
 #include <windows.h>
 
-// Allows us to use names for objects and variables from the standard library.
 using namespace std;
 
 int main() {

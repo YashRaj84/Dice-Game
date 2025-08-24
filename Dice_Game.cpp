@@ -1,119 +1,223 @@
-#include <bits/stdc++.h>
-#include <windows.h>
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <map>
+#include <string>
+#include <random>
+#include <thread>
+#include <chrono>
 
-using namespace std;
+//================================================================
+// Player Class
+// Manages the data for a single player.
+//================================================================
+class Player {
+private:
+    std::string name;
+    int position;
 
-int main() {
-    // --- 1. GAME SETUP ---
-    cout << "?? Welcome to Dice Race to 100! ??\n";
-    cout << "====================================\n";
+public:
+    // Constructor to initialize a player with a name and starting position 0
+    Player(const std::string& playerName) : name(playerName), position(0) {}
 
-    // Seed the random number generator. This is a classic way to ensure
-    // you get different random numbers each time you run the program.
-    srand(time(0));
-
-    // Get the number of players
-    int num_players;
-    cout << "Enter the number of players (2-4): ";
-    cin >> num_players;
-    if (num_players < 2 || num_players > 4) {
-        cout << "Invalid number of players. Please restart. Exiting.\n";
-        return 1;
+    // Getter for the player's name
+    std::string getName() const {
+        return name;
     }
 
-    // Data Structures Initialization
-    queue<int> player_queue;
-    vector<string> player_names(num_players);
-    vector<int> player_positions(num_players, 0);
-
-    // Get player names and populate the queue
-    for (int i = 0; i < num_players; ++i) {
-        cout << "Enter name for Player " << i + 1 << ": ";
-        cin >> player_names[i];
-        player_queue.push(i);
+    // Getter for the player's position
+    int getPosition() const {
+        return position;
     }
 
-    // Create the map for special squares (Boosts & Setbacks)
-    map<int, int> board_specials;
-    // Boosts (Ladders)
-    board_specials[4] = 14;
-    board_specials[9] = 31;
-    board_specials[20] = 38;
-    board_specials[28] = 84;
-    board_specials[40] = 59;
-    board_specials[51] = 67;
-    board_specials[63] = 81;
-    board_specials[71] = 91;
-    // Setbacks (Snakes)
-    board_specials[17] = 7;
-    board_specials[54] = 34;
-    board_specials[62] = 19;
-    board_specials[64] = 60;
-    board_specials[87] = 24;
-    board_specials[93] = 73;
-    board_specials[95] = 75;
-    board_specials[98] = 79;
-    
-    cout << "\nGame starting... Press Enter to roll the dice.\n";
-    cin.ignore();
+    // Setter to update the player's position
+    void setPosition(int newPosition) {
+        position = newPosition;
+    }
+};
 
-    // --- 2. GAME LOOP ---
-    int winner = -1;
-    while (winner == -1) {
-        int current_player_index = player_queue.front();
+//================================================================
+// Dice Class
+// Handles the logic for rolling a die.
+//================================================================
+class Dice {
+private:
+    std::mt19937 gen; // Mersenne Twister random number generator
+    std::uniform_int_distribution<> distrib;
 
-        cout << "------------------------------------\n";
-        cout << "It's " << player_names[current_player_index] << "'s turn. (Position: " << player_positions[current_player_index] << ")\n";
-        cout << "Press Enter to roll the dice...";
-        cin.get();
+public:
+    // Constructor sets up the random number generator
+    Dice() : distrib(1, 6) {
+        std::random_device rd;
+        gen.seed(rd());
+    }
 
-        // Roll the dice using the classic rand() function
-        int roll = rand() % 6 + 1; // Generates a number from 1 to 6
-        cout << "\n" << player_names[current_player_index] << " rolled a " << roll << "!\n";
-        Sleep(500); // Pause for 500 milliseconds
+    // Rolls the dice and returns the result
+    int roll() {
+        return distrib(gen);
+    }
+};
 
-        int potential_position = player_positions[current_player_index] + roll;
+//================================================================
+// Board Class
+// Manages the game board, including special squares.
+//================================================================
+class Board {
+private:
+    std::map<int, int> specialSquares;
+    const int finalSquare = 100;
 
-        if (potential_position > 100) {
-            cout << "Oh no! A roll of " << roll << " overshoots 100. Turn skipped.\n";
-        } else if (potential_position == 100) {
-            player_positions[current_player_index] = 100;
-            winner = current_player_index;
+public:
+    // Constructor initializes the boosts and setbacks
+    Board() {
+        specialSquares = {
+            // Boosts (Ladders)
+            {4, 14}, {9, 31}, {20, 38}, {28, 84}, {40, 59}, {51, 67}, {63, 81}, {71, 91},
+            // Setbacks (Snakes)
+            {17, 7}, {54, 34}, {62, 19}, {64, 60}, {87, 24}, {93, 73}, {95, 75}, {98, 79}
+        };
+    }
+
+    int getFinalSquare() const {
+        return finalSquare;
+    }
+
+    // Checks if a square is special and returns the destination, otherwise returns the original position
+    int getSpecialSquareTarget(int position) const {
+        if (specialSquares.count(position)) {
+            return specialSquares.at(position);
+        }
+        return position; // Not a special square, return original position
+    }
+};
+
+//================================================================
+// Game Class
+// Orchestrates the entire game flow.
+//================================================================
+class Game {
+private:
+    std::vector<Player> players;
+    std::queue<int> playerTurnQueue;
+    Board board;
+    Dice dice;
+    int winnerIndex = -1;
+
+    // Utility function to pause the game
+    void pause(int milliseconds) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+    }
+
+    // Sets up the game by getting player count and names
+    void setup() {
+        std::cout << "🎲 Welcome to Dice Race to 100! 🎲\n";
+        std::cout << "====================================\n";
+
+        int num_players;
+        std::cout << "Enter the number of players (2-4): ";
+        std::cin >> num_players;
+        if (num_players < 2 || num_players > 4) {
+            std::cout << "Invalid number of players. Please restart. Exiting.\n";
+            exit(1); // Exit the program
+        }
+
+        for (int i = 0; i < num_players; ++i) {
+            std::string name;
+            std::cout << "Enter name for Player " << i + 1 << ": ";
+            std::cin >> name;
+            players.emplace_back(name); // Create Player object in place
+            playerTurnQueue.push(i);
+        }
+
+        std::cout << "\nGame starting... Press Enter to roll the dice.\n";
+        std::cin.ignore();
+    }
+
+    // Manages a single turn for a player
+    void takeTurn() {
+        int currentPlayerIndex = playerTurnQueue.front();
+        Player& currentPlayer = players[currentPlayerIndex]; // Use a reference for easier access
+
+        std::cout << "------------------------------------\n";
+        std::cout << "It's " << currentPlayer.getName() << "'s turn. (Position: " << currentPlayer.getPosition() << ")\n";
+        std::cout << "Press Enter to roll the dice...";
+        std::cin.get();
+
+        int roll = dice.roll();
+        std::cout << "\n" << currentPlayer.getName() << " rolled a " << roll << "!\n";
+        pause(500);
+
+        int potentialPosition = currentPlayer.getPosition() + roll;
+
+        if (potentialPosition > board.getFinalSquare()) {
+            std::cout << "Oh no! A roll of " << roll << " overshoots 100. Turn skipped.\n";
+        } else if (potentialPosition == board.getFinalSquare()) {
+            currentPlayer.setPosition(potentialPosition);
+            winnerIndex = currentPlayerIndex; // We have a winner!
         } else {
-            player_positions[current_player_index] = potential_position;
-            cout << "You move to position " << player_positions[current_player_index] << ".\n";
-            Sleep(500);
+            currentPlayer.setPosition(potentialPosition);
+            std::cout << "You move to position " << currentPlayer.getPosition() << ".\n";
+            pause(500);
 
-            if (board_specials.count(player_positions[current_player_index])) {
-                int start_pos = player_positions[current_player_index];
-                int end_pos = board_specials[start_pos];
-                
-                if (end_pos > start_pos) {
-                    cout << "?? Wow! You landed on a boost! You jump from " << start_pos << " to " << end_pos << "!\n";
+            int specialTarget = board.getSpecialSquareTarget(currentPlayer.getPosition());
+            if (specialTarget != currentPlayer.getPosition()) {
+                int startPos = currentPlayer.getPosition();
+                if (specialTarget > startPos) {
+                    std::cout << "🎉 Wow! You landed on a boost! You jump from " << startPos << " to " << specialTarget << "!\n";
                 } else {
-                    cout << "?? Ouch! You landed on a setback! You slide from " << start_pos << " to " << end_pos << ".\n";
+                    std::cout << "🐍 Ouch! You landed on a setback! You slide from " << startPos << " to " << specialTarget << ".\n";
                 }
-                player_positions[current_player_index] = end_pos;
-                Sleep(1000);
+                currentPlayer.setPosition(specialTarget);
+                pause(1000);
             }
         }
-        
-        cout << "\nCurrent Standings:\n";
-        for (int i = 0; i < num_players; ++i) {
-            cout << "  - " << player_names[i] << ": " << player_positions[i] << "\n";
-        }
-
-        player_queue.pop();
-        player_queue.push(current_player_index);
-        
-        Sleep(1000);
     }
 
-    // --- 3. GAME END ---
-    cout << "\n====================================\n";
-    cout << "?? CONGRATULATIONS " << player_names[winner] << "! YOU WIN! ??\n";
-    cout << "====================================\n";
-    cout << "Thank you for playing!\n";
+    // Prints the current standings of all players
+    void displayStandings() const {
+        std::cout << "\nCurrent Standings:\n";
+        for (const auto& player : players) {
+            std::cout << "  - " << player.getName() << ": " << player.getPosition() << "\n";
+        }
+    }
+    
+    // Announces the winner
+    void displayWinner() const {
+        if (winnerIndex != -1) {
+            std::cout << "\n====================================\n";
+            std::cout << "🏆 CONGRATULATIONS " << players[winnerIndex].getName() << "! YOU WIN! 🏆\n";
+            std::cout << "====================================\n";
+            std::cout << "Thank you for playing!\n";
+        }
+    }
 
+public:
+    // Public method to start and run the game
+    void run() {
+        setup();
+        
+        while (winnerIndex == -1) {
+            takeTurn();
+            displayStandings();
+
+            // Cycle the player queue for the next turn
+            playerTurnQueue.push(playerTurnQueue.front());
+            playerTurnQueue.pop();
+
+            pause(1000);
+        }
+
+        displayWinner();
+    }
+};
+
+
+//================================================================
+// Main Function
+// Creates a Game object and runs it.
+//================================================================
+int main() {
+    Game diceRace;
+    diceRace.run();
     return 0;
 }
